@@ -61,6 +61,7 @@ public class ExecutorTest extends ClockedExperimentDbTestCaseBase {
     EasyMock.replay(mockSubjectInterrogator);
 
     mockPipelineSynchronizer = EasyMock.createMock(PipelineSynchronizer.class);
+    mockPipelineSynchronizer.executorStartHook();
     EasyMock.replay(mockPipelineSynchronizer);
 
     mockSubjectSettingsFileManager = EasyMock.createMock(SubjectSettingsFileManager.class);
@@ -80,7 +81,7 @@ public class ExecutorTest extends ClockedExperimentDbTestCaseBase {
     EasyMock.replay(mockCollectionLogAddressor);
 
     final PipelineStageInfo pipelineStageInfo = new PipelineStageInfo();
-    
+
     executor = new Executor(clock, monitor, experimentDb, mockManipulator, mockHealthQuerier,
         mockSubjectInterrogator, mockPipelineSynchronizer, mockSubjectSettingsFileManager,
         mockMetricExporter, mockFileFactory, new NullServingAddressGenerator(),
