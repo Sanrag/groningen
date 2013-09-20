@@ -335,7 +335,7 @@ public class Executor extends ProfilingRunnable {
       }
     }
   }
-  
+
   /**
    * Provide the remaining time within the run of the experiment.
    *
@@ -359,6 +359,7 @@ public class Executor extends ProfilingRunnable {
 
   @Override
   public void profiledRun(GroningenConfig config) throws RuntimeException {
+    pipelineSynchronizer.executorStartHook();
     preSteps(config);
     steadyState(config);
     postSteps(config);
@@ -484,8 +485,8 @@ public class Executor extends ProfilingRunnable {
         // Clear the JVM settings protobuf to cause subjects to restart with default JVM settings
         subjectSettingsFileManager.delete(subject.getAssociatedSubject().getExpSettingsFile());
       }
-      
-      pipelineStageInfo.set(PipelineStageState.FINAL_TASK_RESTART);    
+
+      pipelineStageInfo.set(PipelineStageState.FINAL_TASK_RESTART);
       restartAllGroups(config);
       for (SubjectStateBridge subject : subjects) {
         log.info(String.format("Running extractor thread on %s.", subject.getHumanIdentifier()));

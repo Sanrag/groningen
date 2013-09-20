@@ -15,20 +15,22 @@
 
 package org.arbeitspferde.groningen;
 
+import com.google.common.collect.Lists;
 import com.google.inject.Inject;
+
 import org.arbeitspferde.groningen.config.GroningenConfig;
 import org.arbeitspferde.groningen.config.PipelineIterationScoped;
 import org.arbeitspferde.groningen.executor.Executor;
 import org.arbeitspferde.groningen.experimentdb.ExperimentDb;
 import org.arbeitspferde.groningen.generator.Generator;
 import org.arbeitspferde.groningen.hypothesizer.Hypothesizer;
+import org.arbeitspferde.groningen.profiling.ProfilingRunnable;
 import org.arbeitspferde.groningen.scorer.IterationScorer;
 import org.arbeitspferde.groningen.utility.Metric;
 import org.arbeitspferde.groningen.utility.MetricExporter;
 import org.arbeitspferde.groningen.validator.Validator;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -45,11 +47,8 @@ public class PipelineIteration {
 
   private final GroningenConfig config;
   private final PipelineSynchronizer pipelineSynchronizer;
-  private final Executor executor;
-  private final Generator generator;
-  private final Hypothesizer hypothesizer;
-  private final Validator validator;
-  private final IterationScorer scorer;
+  private final ProfilingRunnable[] pipelineStages;
+
   private final PipelineStageInfo pipelineStageInfo;
 
   /**
@@ -73,11 +72,8 @@ public class PipelineIteration {
 
     this.config = config;
     this.pipelineSynchronizer = pipelineSynchronizer;
-    this.executor = executor;
-    this.generator = generator;
-    this.hypothesizer = hypothesizer;
-    this.validator = validator;
-    this.scorer = scorer;
+    this.pipelineStages = Lists.newArrayList(hypothesizer, generator, executor, validator, scorer)
+                               .toArray(new ProfilingRunnable[0]);
     this.pipelineStageInfo = pipelineStageInfo;
 
     metricExporter.register(
@@ -100,41 +96,38 @@ public class PipelineIteration {
    *    valid window.
    */
   public int getRemainingExperimentalSecs() {
-    return (int) executor.getRemainingDurationSeconds();
+    // TODO(sanragsood): Clean this up, PipelineIteration should be unaware of the specifics of
+    // the stage pipeline iteration is in.
+    for (ProfilingRunnable stage : pipelineStages) {
+      if (stage instanceof Executor) {
+        return (int)((Executor)stage).getRemainingDurationSeconds();
+      }
+    }
+    return 0;
   }
 
   public boolean run() {
-    executor.startUp();
-    generator.startUp();
-    hypothesizer.startUp();
-    validator.startUp();
-    scorer.startUp();
-
-    currentPipelineStage.set(0);
+    for (ProfilingRunnable stage : pipelineStages) {
+      stage.startUp();
+    }
 
     // Synchronization within the pipeline iteration - after the config is updated
     pipelineSynchronizer.iterationStartHook();
 
-    pipelineStageInfo.set(PipelineStageState.HYPOTHESIZER);
-    hypothesizer.run(config);
-    boolean notComplete = hypothesizer.notComplete();
-
-    if (notComplete) {
-      currentPipelineStage.set(1);
-      pipelineStageInfo.set(PipelineStageState.GENERATOR);
-      generator.run(config);
-
-      // This stage returns only when all experiments are complete
-      currentPipelineStage.set(2);
-      pipelineSynchronizer.executorStartHook();
-      executor.run(config);
-
-      currentPipelineStage.set(3);
-      pipelineStageInfo.set(PipelineStageState.SCORING);
-      validator.run(config);
-
-      currentPipelineStage.set(4);
-      scorer.run(config);
+    int stageCount = 0;
+    boolean notComplete = true;
+    for (ProfilingRunnable stage : pipelineStages) {
+      currentPipelineStage.set(stageCount++);
+      pipelineStageInfo.setStageFromRunnable(stage);
+      stage.run(config);
+      // TODO(sanragsood): Clean this up, remove dependency on stage specifics from pipeline
+      // iteration
+      if (stage instanceof Hypothesizer) {
+        notComplete = ((Hypothesizer)stage).notComplete();
+        if (!notComplete) {
+          break;
+        }
+      }
     }
 
     return notComplete;
