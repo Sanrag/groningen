@@ -15,6 +15,7 @@
 
 package org.arbeitspferde.groningen;
 import com.google.inject.Guice;
+import com.google.inject.Injector;
 import com.google.inject.Module;
 
 /**
@@ -23,7 +24,15 @@ import com.google.inject.Module;
  * it would be for another user of Groningen to extend the test bed for new purposes.
  */
 public class WorkhorseFactory {
+
+  private static Injector injector;
+
+  public static Injector getInjector() {
+    return injector;
+  }
+
   public GroningenWorkhorse workhorseFor(final Module... modules) {
-    return Guice.createInjector(modules).getInstance(GroningenWorkhorse.class);
+    injector = Guice.createInjector(modules);
+    return injector.getInstance(GroningenWorkhorse.class);
   }
 }

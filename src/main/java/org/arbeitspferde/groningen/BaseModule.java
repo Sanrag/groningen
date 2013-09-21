@@ -108,6 +108,8 @@ public class BaseModule extends AbstractModule {
         .in(PipelineScoped.class);
 
     // PipelineIteration-scoped bindings
+    bind(PipelineIteration.class).toProvider(PipelineIterationProvider.class)
+        .in(PipelineIterationScoped.class);
     bind(Generator.class).in(PipelineIterationScoped.class);
     bind(Validator.class).in(PipelineIterationScoped.class);
     bind(IterationScorer.class).in(PipelineIterationScoped.class);

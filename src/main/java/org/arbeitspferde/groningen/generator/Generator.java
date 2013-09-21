@@ -65,7 +65,7 @@ public class Generator extends ProfilingRunnable {
 
   private final PipelineId pipelineId;
 
-  /** The delay period in millis betwen retries of failing Generator runs */
+  /** The delay period in millis between retries of failing Generator runs */
   private static final long RUN_GENERATOR_RETRY_DELAY = 60000L;
 
   /**

@@ -16,20 +16,17 @@
 package org.arbeitspferde.groningen;
 
 import com.google.common.collect.Lists;
-import com.google.inject.Inject;
+import com.google.inject.Injector;
 
 import org.arbeitspferde.groningen.config.GroningenConfig;
 import org.arbeitspferde.groningen.config.PipelineIterationScoped;
 import org.arbeitspferde.groningen.executor.Executor;
-import org.arbeitspferde.groningen.experimentdb.ExperimentDb;
-import org.arbeitspferde.groningen.generator.Generator;
 import org.arbeitspferde.groningen.hypothesizer.Hypothesizer;
 import org.arbeitspferde.groningen.profiling.ProfilingRunnable;
-import org.arbeitspferde.groningen.scorer.IterationScorer;
 import org.arbeitspferde.groningen.utility.Metric;
 import org.arbeitspferde.groningen.utility.MetricExporter;
-import org.arbeitspferde.groningen.validator.Validator;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
@@ -45,6 +42,30 @@ import java.util.logging.Logger;
 public class PipelineIteration {
   private static final Logger log = Logger.getLogger(PipelineIteration.class.getCanonicalName());
 
+  public static final class Builder {
+
+    private List<ProfilingRunnable> pipelineStagesList = Lists.newArrayList();
+
+    public Builder addPipelineStage(ProfilingRunnable pipelineStage) {
+      pipelineStagesList.add(pipelineStage);
+      return this;
+    }
+
+    public PipelineIteration build() {
+      Injector injector = WorkhorseFactory.getInjector();
+      return new PipelineIteration(
+          injector.getInstance(GroningenConfig.class),
+          injector.getInstance(PipelineSynchronizer.class),
+          injector.getInstance(MetricExporter.class),
+          injector.getInstance(PipelineStageInfo.class),
+          pipelineStagesList.toArray(new ProfilingRunnable[0]));
+    }
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
   private final GroningenConfig config;
   private final PipelineSynchronizer pipelineSynchronizer;
   private final ProfilingRunnable[] pipelineStages;
@@ -59,22 +80,15 @@ public class PipelineIteration {
    **/
   private static AtomicInteger currentPipelineStage = new AtomicInteger();
 
-  @Inject
-  public PipelineIteration(final GroningenConfig config,
-      final PipelineSynchronizer pipelineSynchronizer,
-      final Executor executor,
-      final Generator generator,
-      final Hypothesizer hypothesizer,
-      final Validator validator,
-      final IterationScorer scorer,
-      final MetricExporter metricExporter,
-      final PipelineStageInfo pipelineStageInfo) {
-
+  private PipelineIteration(final GroningenConfig config,
+                            final PipelineSynchronizer pipelineSynchronizer,
+                            final MetricExporter metricExporter,
+                            final PipelineStageInfo pipelineStageInfo,
+                            final ProfilingRunnable[] pipelineStages) {
     this.config = config;
     this.pipelineSynchronizer = pipelineSynchronizer;
-    this.pipelineStages = Lists.newArrayList(hypothesizer, generator, executor, validator, scorer)
-                               .toArray(new ProfilingRunnable[0]);
     this.pipelineStageInfo = pipelineStageInfo;
+    this.pipelineStages = pipelineStages;
 
     metricExporter.register(
         "current_pipeline_stage",
